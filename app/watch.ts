@@ -3,6 +3,14 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
+import {
+  CASE_PROFILES,
+  caseShell,
+  EXPLOSION_SPACING,
+  ViewTransition,
+  viewPose,
+  reflectionShader,
+} from './presentation';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   Movement,
@@ -144,7 +152,7 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
   RectAreaLightUniformsLib.init();
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x090d0f, 0.023);
-  const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 70);
+  const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 150);
   camera.position.set(0.4, -2.1, 12.7);
   const renderer = new THREE.WebGLRenderer({
     antialias: true,
@@ -173,10 +181,13 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
   controls.dampingFactor = 0.065;
   controls.enablePan = false;
   controls.minDistance = 6.3;
-  controls.maxDistance = 21;
+  controls.maxDistance = 90;
   controls.rotateSpeed = 0.65;
   controls.target.set(0, 0, 0);
   controls.autoRotateSpeed = 0.5;
+  const transition = new ViewTransition(camera, controls);
+  const cancelViewTransition = () => transition.cancel();
+  controls.addEventListener('start', cancelViewTransition);
   const movement = new Movement();
   const makeMat = (color: number, metalness = 1, roughness = 0.25) =>
     new THREE.MeshStandardMaterial({ color, metalness, roughness });
@@ -346,25 +357,29 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
   }
   // Case: separate mid-case, polished bezels, front crystal and exhibition back.
   const caseGroup = groups.crystal;
-  mesh(annulus(2.52, 2.235, 0.5), brushed, caseGroup, 0, 0, -0.06);
-  ring(2.49, 0.067, caseGroup, silver, 0, 0, 0.2);
-  ring(2.43, 0.066, caseGroup, silver, 0, 0, 0.41);
-  mesh(annulus(2.45, 2.235, 0.12), silver, caseGroup, 0, 0, 0.38);
-  ring(2.28, 0.022, caseGroup, brightGold, 0, 0, 0.437);
-  mesh(annulus(2.46, 2.19, 0.11), silver, caseGroup, 0, 0, -0.52);
-  ring(2.46, 0.025, caseGroup, rhodium, 0, 0, -0.35);
-  mesh(annulus(2.39, 2.245, 0.25), brushed, caseGroup, 0, 0, 0.62);
-  ring(2.32, 0.073, caseGroup, silver, 0, 0, 0.765);
+  mesh(caseShell(CASE_PROFILES.middle), brushed, caseGroup);
+  ring(2.49, 0.025, caseGroup, silver, 0, 0, 0.2);
+  const bezel = new THREE.Group();
+  caseGroup.add(bezel);
+  layer(bezel, 3.0);
+  mesh(caseShell(CASE_PROFILES.bezel), silver, bezel);
+  ring(2.3, 0.026, bezel, silver, 0, 0, 0.79);
+  ring(2.255, 0.014, bezel, brightGold, 0, 0, 0.765);
+  const backBezel = new THREE.Group();
+  caseGroup.add(backBezel);
+  layer(backBezel, -2.1);
+  mesh(caseShell(CASE_PROFILES.back), silver, backBezel);
+  ring(2.42, 0.016, backBezel, rhodium, 0, 0, -0.47);
   const frontGlass = layer(
     mesh(cylinderZ(2.25, 0.052), glassMat, caseGroup, 0, 0, 0.8),
-    2.7,
+    3.25,
   );
   frontGlass.castShadow = false;
   frontGlass.renderOrder = 4;
   frontGlass.userData.ignorePick = true;
   const backGlass = layer(
     mesh(cylinderZ(2.18, 0.036), glassMat, caseGroup, 0, 0, -0.56),
-    -1.7,
+    -2.3,
   );
   backGlass.castShadow = false;
   backGlass.userData.ignorePick = true;
@@ -568,7 +583,16 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
         0,
         prev.z,
       );
-      mesh(cylinderZ(0.023, 0.87), silver, assembly, 0, 0, 0.015);
+      const shaftTop = i === 1 ? 0.735 : i === 3 ? 0.625 : 0.45,
+        shaftBottom = -0.42;
+      mesh(
+        cylinderZ(0.023, shaftTop - shaftBottom),
+        silver,
+        assembly,
+        0,
+        0,
+        (shaftTop + shaftBottom) / 2,
+      );
       ring(
         spec.wheel * spec.module * 0.38,
         0.008,
@@ -675,9 +699,11 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
   );
   bevelPinion.rotation.y = Math.PI / 2;
   const crown = new THREE.Group();
-  crown.position.set(2.72, barrel.y, 0);
+  crown.position.set(1.82, 0, 0);
+  crown.userData.windHandle = true;
   stem.add(crown);
-  crown.position.x = 1.82;
+  const collar = mesh(cylinderZ(0.066, 0.2), silver, stem, 1.66, 0, 0);
+  collar.rotation.y = Math.PI / 2;
   const crownBody = mesh(
     new THREE.CylinderGeometry(0.215, 0.215, 0.32, 64),
     silver,
@@ -736,7 +762,7 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
   balanceGroup.add(balanceRotor);
   ring(0.59, 0.041, balanceRotor, gold);
   ring(0.55, 0.015, balanceRotor, brightGold);
-  mesh(cylinderZ(0.035, 0.4), silver, balanceRotor, 0, 0, -0.06);
+  mesh(cylinderZ(0.035, 0.74), silver, balanceRotor, 0, 0, -0.075);
   for (let i = 0; i < 4; i++) {
     const a = (i * TAU) / 4;
     bar(
@@ -918,7 +944,7 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
       0,
       0.055,
     );
-  mesh(annulus(0.056, 0.029, 0.17), silver, motion, 0, 0, 0.083);
+  mesh(annulus(0.056, 0.029, 0.24), silver, motion, 0, 0, 0.11);
   const handsGroup = new THREE.Group();
   groups.hands.add(handsGroup);
   handsGroup.position.z = 0.59;
@@ -956,6 +982,9 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
   }
   const hourHand = hand(1.18, 0.135, silver, 0),
     minuteHand = hand(1.79, 0.092, silver, 0.05);
+  mesh(cylinderZ(0.033, 0.205), silver, handsGroup, 0, 0, 0.0525);
+  mesh(cylinderZ(0.075, 0.025), silver, hourHand, 0, 0, 0.0125);
+  mesh(cylinderZ(0.068, 0.025), silver, minuteHand, 0, 0, 0.0125);
   mesh(cylinderZ(0.1, 0.048), silver, handsGroup, 0, 0, 0.11);
   mesh(cylinderZ(0.051, 0.015), blue, handsGroup, 0, 0, 0.141);
   const fourth = TRAIN[3],
@@ -975,8 +1004,11 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
   batch(secondTicks, silver, secondsGroup);
   const secondsHand = new THREE.Group();
   secondsGroup.add(secondsHand);
-  bar(0, -0.095, 0, 0.347, 0.035, 0.014, brightGold, secondsHand);
-  mesh(cylinderZ(0.033, 0.025), ruby, secondsHand, 0, 0, 0.043);
+  mesh(cylinderZ(0.023, 0.18), silver, secondsGroup, 0, 0, -0.015);
+  bar(0, -0.11, 0, 0.354, 0.042, 0.026, silver, secondsHand);
+  bar(0, 0.16, 0, 0.326, 0.071, 0.01, lume, secondsHand);
+  mesh(cylinderZ(0.047, 0.03), silver, secondsHand, 0, 0, 0.053);
+  mesh(cylinderZ(0.023, 0.008), blue, secondsHand, 0, 0, 0.073);
   // Independent pins and screws around the case-back and mainplate.
   for (let i = 0; i < 8; i++) {
     const a = (i * TAU) / 8 + 0.25;
@@ -1006,17 +1038,26 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
   const ambient = new THREE.AmbientLight(0xafcfbb, 0.45);
   scene.add(ambient);
   const mirror = new Reflector(new THREE.PlaneGeometry(20, 18), {
-    textureWidth: 512,
-    textureHeight: 512,
-    color: 0x1a211c,
+    textureWidth: 768,
+    textureHeight: 768,
+    color: 0xffffff,
+    shader: reflectionShader,
     clipBias: 0.003,
   });
+  const mirrorMaterial = mirror.material as THREE.ShaderMaterial;
+  mirrorMaterial.transparent = true;
+  mirrorMaterial.depthWrite = false;
+  mirror.renderOrder = 1;
   mirror.rotation.x = -Math.PI / 2;
   mirror.position.y = -3.62;
   scene.add(mirror);
   const shadow = mesh(
     new THREE.PlaneGeometry(20, 18),
-    new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.32 }),
+    new THREE.ShadowMaterial({
+      color: 0x000000,
+      opacity: 0.32,
+      depthWrite: false,
+    }),
     scene,
     0,
     -3.6,
@@ -1045,7 +1086,9 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
       if (list.length < 2) return;
       const geos = list.map((o) => {
         o.updateMatrix();
-        const geometry = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+        const geometry = o.geometry.index
+          ? o.geometry.toNonIndexed()
+          : o.geometry.clone();
         return geometry.applyMatrix4(o.matrix);
       });
       const merged = mergeGeometries(geos);
@@ -1063,6 +1106,8 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
     base,
     bridgeTop,
     caseGroup,
+    bezel,
+    backBezel,
     chapter,
     crown,
     balanceRotor,
@@ -1120,7 +1165,7 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
       }
     });
   }
-  function hit(e: PointerEvent) {
+  function pick(e: PointerEvent) {
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.set(
       ((e.clientX - rect.left) / rect.width) * 2 - 1,
@@ -1130,9 +1175,16 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
     const result = raycaster.intersectObjects(pickable, false);
     if (!result.length) return null;
     let p: THREE.Object3D | null = result[0].object;
-    while (p && !p.userData.part) p = p.parent;
-    return (p?.userData.part as PartKey) || null;
+    let key: PartKey | null = null,
+      windHandle = false;
+    while (p) {
+      key ||= (p.userData.part as PartKey) || null;
+      windHandle ||= p.userData.windHandle === true;
+      p = p.parent;
+    }
+    return key ? { key, windHandle } : null;
   }
+  const hit = (e: PointerEvent) => pick(e)?.key ?? null;
   let winding = false,
     downX = 0,
     downY = 0,
@@ -1141,11 +1193,12 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
     moved = false,
     dragPointer = -1;
   function down(e: PointerEvent) {
+    transition.cancel();
     downX = lastX = e.clientX;
     downY = lastY = e.clientY;
     moved = false;
-    const part = hit(e);
-    if (part === 'crown' && !movement.setting) {
+    const target = pick(e);
+    if (target?.windHandle && !movement.setting) {
       winding = true;
       dragPointer = e.pointerId;
       controls.enabled = false;
@@ -1170,13 +1223,17 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
       return;
     }
     if (e.buttons) return;
-    const part = hit(e);
+    const target = pick(e),
+      part = target?.key ?? null;
     if (part !== hovered) {
       hovered = part;
       highlight();
     }
-    renderer.domElement.style.cursor =
-      part === 'crown' ? 'ns-resize' : part ? 'pointer' : 'grab';
+    renderer.domElement.style.cursor = target?.windHandle
+      ? 'ns-resize'
+      : part
+        ? 'pointer'
+        : 'grab';
     const rect = container.getBoundingClientRect();
     hooks.onHover?.(
       part
@@ -1212,22 +1269,26 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
     dragPointer = -1;
   }
   function keyboard(e: KeyboardEvent) {
+    if (e.key.startsWith('Arrow') || ['+', '=', '-'].includes(e.key))
+      transition.cancel();
     if (e.key === 'w' || e.key === 'W') {
       movement.wind(0.25);
       hooks.onWind?.(movement.reserve >= 172800);
-    } else if (e.key === '+' || e.key === '=')
-      camera.position.multiplyScalar(0.92);
-    else if (e.key === '-') camera.position.multiplyScalar(1.08);
+    } else if (e.key === '+' || e.key === '=') zoom(0.92);
+    else if (e.key === '-') zoom(1.08);
     else if (e.key.startsWith('Arrow')) {
       e.preventDefault();
       const axis =
         e.key === 'ArrowUp' || e.key === 'ArrowDown'
           ? new THREE.Vector3(1, 0, 0)
           : new THREE.Vector3(0, 1, 0);
-      camera.position.applyAxisAngle(
-        axis,
-        e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? 0.08 : -0.08,
-      );
+      camera.position
+        .sub(controls.target)
+        .applyAxisAngle(
+          axis,
+          e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? 0.08 : -0.08,
+        )
+        .add(controls.target);
     }
     controls.update();
   }
@@ -1252,13 +1313,19 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
     lastSpringReserve = -1,
     lastSpringAngle = -1;
   let auto = false,
-    viewTarget: THREE.Vector3 | null = null;
+    framed = false;
   const resize = () => {
     const r = container.getBoundingClientRect();
     if (!r.width || !r.height) return;
     camera.aspect = r.width / r.height;
     camera.updateProjectionMatrix();
     renderer.setSize(r.width, r.height);
+    if (!framed) {
+      const pose = viewPose(camera.aspect);
+      camera.position.copy(pose.position);
+      controls.target.copy(pose.target);
+      framed = true;
+    }
   };
   const observer = new ResizeObserver(resize);
   observer.observe(container);
@@ -1299,10 +1366,9 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
     ex += (exTarget - ex) * ease;
     night += (nightTarget - night) * ease;
     explodeNodes.forEach(
-      ({ node, base, factor }) => (node.position.z = base + factor * ex * 0.57),
+      ({ node, base, factor }) =>
+        (node.position.z = base + factor * ex * EXPLOSION_SPACING),
     );
-    watch.rotation.y +=
-      ((exTarget ? 0.3 : -0.2) - watch.rotation.y) * ease * 0.5;
     TRAIN.forEach(
       (spec, i) =>
         (wheels[i].rotation.z =
@@ -1344,11 +1410,8 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
     scene.environmentIntensity = 1.1 * (1 - night * 0.965);
     lume.emissiveIntensity = 0.25 + night * 4.8;
     renderer.toneMappingExposure = 1.15 + night * 0.1;
-    if (viewTarget) {
-      camera.position.lerp(viewTarget, ease);
-      if (camera.position.distanceTo(viewTarget) < 0.02) viewTarget = null;
-    }
-    controls.autoRotate = auto && !winding;
+    transition.update(Math.min(dt, 0.1));
+    controls.autoRotate = auto && !winding && !transition.active;
     controls.update();
     renderer.render(scene, camera);
     if (now - lastUi > 110) {
@@ -1357,13 +1420,19 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
     }
   }
   frame = requestAnimationFrame(animate);
+  function zoom(f: number) {
+    transition.cancel();
+    const offset = camera.position.clone().sub(controls.target);
+    const d = THREE.MathUtils.clamp(offset.length() * f, 6.3, 90);
+    camera.position.copy(offset.setLength(d)).add(controls.target);
+  }
   return {
     movement,
     explode(v: boolean) {
+      auto = false;
       exTarget = v ? 1 : 0;
-      viewTarget = v
-        ? new THREE.Vector3(4, -3.5, 14.7)
-        : new THREE.Vector3(0.4, -2.1, 12.7);
+      const pose = viewPose(camera.aspect, v);
+      transition.start(pose.position, pose.target);
     },
     explodeAmount(v: number) {
       exTarget = THREE.MathUtils.clamp(v, 0, 1);
@@ -1393,23 +1462,22 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
     speed(v: number) {
       if (Number.isFinite(v) && v > 0) movement.speed = v;
     },
-    zoom(f: number) {
-      viewTarget = null;
-      const d = THREE.MathUtils.clamp(camera.position.length() * f, 6.3, 21);
-      camera.position.setLength(d);
-    },
+    zoom,
     back() {
-      viewTarget = new THREE.Vector3(-0.4, -1.3, -12.7);
+      const pose = viewPose(camera.aspect, false, true);
+      transition.start(pose.position, pose.target);
     },
     reset() {
-      viewTarget = new THREE.Vector3(0.4, -2.1, 12.7);
-      controls.target.set(0, 0, 0);
+      const pose = viewPose(camera.aspect);
+      transition.start(pose.position, pose.target);
       auto = false;
     },
     dispose() {
       cancelAnimationFrame(frame);
       cancel();
       observer.disconnect();
+      controls.removeEventListener('start', cancelViewTransition);
+      transition.cancel();
       controls.dispose();
       renderer.domElement.removeEventListener('pointerdown', down, true);
       renderer.domElement.removeEventListener('pointermove', move);

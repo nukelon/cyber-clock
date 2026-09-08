@@ -456,6 +456,7 @@ export default function Home() {
             className={'tool-button ' + (exploded ? 'active' : '')}
             onClick={() => {
               api.current?.explode(!exploded);
+              setAuto(false);
               setExploded(!exploded);
               setBack(false);
               setExplosion(100);

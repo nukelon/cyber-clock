@@ -1,6 +1,14 @@
 # NOCTURNE · 交互式镂空机械腕表
 
-## 打开网站
+## 在线访问与 GitHub 源码
+
+在线网站：https://nukelon.github.io/cyber-clock/
+
+仓库根目录为开发源码，需先 `pnpm install`，再 `pnpm dev`。执行 `pnpm build` 后，成品位于 `dist/`，其中 index.html 可离线打开。
+
+GitHub Pages 通过 `.github/workflows/pages.yml` 自动检查、编译并部署 `dist/`。仓库的 Settings → Pages → Source 应选择 **GitHub Actions**。不要直接把 main 分支根目录当作成品发布，否则浏览器会请求未编译的 `/app/main.tsx` 并出现空白页。
+
+## 打开离线交付包
 
 解压交付压缩包，双击根目录的 **index.html**。所有脚本和样式均在本地，无需联网或安装依赖。保留 `assets` 文件夹的位置。支持 WebGL 2 的现代桌面及手机浏览器，需要硬件加速。
 
@@ -67,9 +75,10 @@ Node.js ≥ 22.13。构建将自动产生 dist/index.html、dist/index.heml 及�
 
 - TypeScript 类型检查。
 - 15 组独立机械不变量：轮系中心距、速度守恒、周期与方向、半振动放行、锁止相位、12:1 拨针、储能守恒、反向空回、满链限位、停秒、耗尽停走、再次上链、跨午夜与变速。
+- 相机轨道切换与手动接管测试、表壳连续侧壁射线检查、爆炸视图取景检查。
 - 生产构建与离线脚本语法检查。
 
-未进行浏览器截图或真机帧率测量，未进行实体机芯工程验证。
+已通过浏览器检查装配、侧向爆炸、拖动接管、上链、夜光及发布页面。未进行真机帧率测量或实体机芯工程验证。
 
 ## 参考
 

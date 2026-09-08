@@ -11,7 +11,7 @@
     "start": "vite preview",
     "lint": "oxlint",
     "format": "oxfmt",
-    "test": "node --experimental-strip-types tests/mechanism.test.mjs"
+    "test": "node --experimental-strip-types tests/mechanism.test.mjs && node --experimental-strip-types tests/presentation.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",
