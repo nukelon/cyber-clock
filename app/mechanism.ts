@@ -170,13 +170,13 @@ export type Snapshot = {
   speed: number;
 };
 export class Movement {
-  reserve = 32 * 3600;
+  reserve = 0;
   elapsed = 0;
   offset = 10 * 3600 + 8 * 60 + 36;
   speed = 1;
   setting = false;
-  crownTurns = 16;
-  amplitude = 270;
+  crownTurns = 0;
+  amplitude = 0;
   coastTime = 0;
   advance(dt: number) {
     if (

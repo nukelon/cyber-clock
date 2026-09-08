@@ -65,6 +65,17 @@ export class ViewTransition {
   get active() {
     return this.motion !== null;
   }
+  reframe(scale: number) {
+    if (!Number.isFinite(scale) || scale <= 0) return;
+    this.camera.position
+      .sub(this.controls.target)
+      .multiplyScalar(scale)
+      .add(this.controls.target);
+    if (this.motion) {
+      this.motion.from.radius *= scale;
+      this.motion.to.radius *= scale;
+    }
+  }
   start(position: THREE.Vector3, target = new THREE.Vector3()) {
     this.cancel();
     this.controls.enableDamping = false;

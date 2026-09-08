@@ -167,7 +167,7 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
   renderer.domElement.tabIndex = 0;
   renderer.domElement.setAttribute(
     'aria-label',
-    '交互式机械腕表；方向键旋转，加减号缩放，W 上链',
+    '交互式机械腕表；左键旋转，中键或双指平移，方向键旋转，加减号缩放，W 上链',
   );
   container.prepend(renderer.domElement);
   const pmrem = new THREE.PMREMGenerator(renderer),
@@ -178,7 +178,10 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.065;
-  controls.enablePan = false;
+  controls.enablePan = true;
+  controls.screenSpacePanning = true;
+  controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN;
+  controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
   controls.minDistance = 6.3;
   controls.maxDistance = 90;
   controls.rotateSpeed = 0.65;
@@ -686,7 +689,7 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
   stem.position.set(0.95, barrel.y, 0.53);
   groups.crown.add(stem);
   layer(stem, 1.5);
-  const stemShaft = mesh(cylinderZ(0.038, 1.72), silver, stem, 0.8, 0, 0);
+  const stemShaft = mesh(cylinderZ(0.038, 1.54), silver, stem, 0.71, 0, 0);
   stemShaft.rotation.y = Math.PI / 2;
   const bevelPinion = mesh(
     gearGeometry(12, 0.023, 0.1, false),
@@ -698,10 +701,10 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
   );
   bevelPinion.rotation.y = Math.PI / 2;
   const crown = new THREE.Group();
-  crown.position.set(1.82, 0, 0);
+  crown.position.set(1.64, 0, 0);
   crown.userData.windHandle = true;
   stem.add(crown);
-  const collar = mesh(cylinderZ(0.066, 0.2), silver, stem, 1.66, 0, 0);
+  const collar = mesh(cylinderZ(0.066, 0.2), silver, stem, 1.48, 0, 0);
   collar.rotation.y = Math.PI / 2;
   const crownBody = mesh(
     new THREE.CylinderGeometry(0.215, 0.215, 0.32, 64),
@@ -787,8 +790,8 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
     );
     w.rotation.z = a;
   }
-  mesh(cylinderZ(0.105, 0.038), silver, balanceRotor, 0, 0, -0.085);
-  mesh(cylinderZ(0.023, 0.065), ruby, balanceRotor, 0.077, 0, -0.1);
+  mesh(cylinderZ(0.105, 0.024), silver, balanceRotor, 0, 0, -0.048);
+  mesh(cylinderZ(0.023, 0.09), ruby, balanceRotor, 0.077, 0, -0.1);
   const hairN = 400,
     hairPosition = new Float32Array((hairN + 1) * 3),
     hairGeo = new THREE.BufferGeometry();
@@ -813,9 +816,10 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
   );
   // Lever, pallet stones, banking pins. The lever dwells between impulse windows.
   const escapementGroup = new THREE.Group();
-  escapementGroup.position.set(0.04, -1.12, 0.13);
+  // The fork runs below the balance spokes; raised pallet mounts reach the wheel.
+  escapementGroup.position.set(0.04, -1.12, 0.03);
   groups.escapement.add(escapementGroup);
-  layer(escapementGroup, 1.2);
+  layer(escapementGroup, 0.65);
   const fork = new THREE.Group();
   escapementGroup.add(fork);
   mesh(
@@ -838,8 +842,12 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
   );
   bar(-0.84, -0.06, -0.75, 0, 0.03, 0.023, silver, fork);
   bar(-0.84, 0.06, -0.75, 0, 0.03, 0.023, silver, fork);
-  mesh(new THREE.BoxGeometry(0.1, 0.045, 0.07), ruby, fork, 0.39, -0.165, 0.04);
-  mesh(new THREE.BoxGeometry(0.1, 0.045, 0.07), ruby, fork, 0.39, 0.17, 0.04);
+  for (const y of [-0.165, 0.17]) {
+    const mountY = y < 0 ? -0.13 : 0.135;
+    mesh(cylinderZ(0.018, 0.15), blue, fork, 0.26, mountY, 0.1);
+    bar(0.26, mountY, 0.39, y, 0.16, 0.024, blue, fork);
+    mesh(new THREE.BoxGeometry(0.1, 0.045, 0.07), ruby, fork, 0.39, y, 0.14);
+  }
   jewel(escapementGroup, 0, 0, 0.061, 0.035);
   for (const y of [-0.1, 0.1])
     mesh(cylinderZ(0.025, 0.075), silver, escapementGroup, -0.34, y, 0.017);
@@ -1190,20 +1198,37 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
     lastY = 0,
     lastX = 0,
     moved = false,
-    dragPointer = -1;
+    dragPointer = -1,
+    selectionPointer = -1;
+  const touchPointers = new Set<number>();
   function down(e: PointerEvent) {
     transition.cancel();
+    if (e.button === 1) e.preventDefault();
+    if (e.pointerType === 'touch') touchPointers.add(e.pointerId);
+    if (touchPointers.size > 1) {
+      winding = false;
+      controls.enableRotate = true;
+      dragPointer = selectionPointer = -1;
+      moved = true;
+      hooks.onHover?.(null);
+      return;
+    }
     downX = lastX = e.clientX;
     downY = lastY = e.clientY;
     moved = false;
+    selectionPointer =
+      e.button === 0 && e.isPrimary && !e.ctrlKey && !e.shiftKey && !e.metaKey
+        ? e.pointerId
+        : -1;
     const target = pick(e);
-    if (target?.windHandle && !movement.setting) {
+    if (target?.windHandle && !movement.setting && selectionPointer >= 0) {
       winding = true;
       dragPointer = e.pointerId;
-      controls.enabled = false;
+      // Keep pointer tracking active so a second touch can immediately pan.
+      controls.enableRotate = false;
       renderer.domElement.setPointerCapture(e.pointerId);
       renderer.domElement.style.cursor = 'ns-resize';
-      e.stopImmediatePropagation();
+      hooks.onHover?.(null);
       selected = 'crown';
       hooks.onSelect?.('crown');
       highlight();
@@ -1211,7 +1236,7 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
   }
   function move(e: PointerEvent) {
     moved ||= Math.hypot(e.clientX - downX, e.clientY - downY) > 5;
-    if (winding) {
+    if (winding && e.pointerId === dragPointer) {
       const turns = (lastY - e.clientY) / 145;
       lastY = e.clientY;
       lastX = e.clientX;
@@ -1221,7 +1246,7 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
       }
       return;
     }
-    if (e.buttons) return;
+    if (e.buttons || touchPointers.size) return;
     const target = pick(e),
       part = target?.key ?? null;
     if (part !== hovered) {
@@ -1241,31 +1266,35 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
     );
   }
   function up(e: PointerEvent) {
-    if (winding) {
+    touchPointers.delete(e.pointerId);
+    if (winding && e.pointerId === dragPointer) {
       winding = false;
-      controls.enabled = true;
+      controls.enableRotate = true;
       if (renderer.domElement.hasPointerCapture(e.pointerId))
         renderer.domElement.releasePointerCapture(e.pointerId);
-      dragPointer = -1;
+      dragPointer = selectionPointer = -1;
       return;
     }
-    if (!moved) {
+    if (!moved && selectionPointer === e.pointerId && !touchPointers.size) {
       selected = hit(e);
       hooks.onSelect?.(selected);
       highlight();
     }
+    selectionPointer = -1;
   }
   function leave() {
     hovered = null;
     hooks.onHover?.(null);
     highlight();
   }
-  function cancel() {
+  function cancel(e?: PointerEvent) {
+    if (e) touchPointers.delete(e.pointerId);
+    else touchPointers.clear();
     winding = false;
-    controls.enabled = true;
+    controls.enableRotate = true;
     if (dragPointer >= 0 && renderer.domElement.hasPointerCapture(dragPointer))
       renderer.domElement.releasePointerCapture(dragPointer);
-    dragPointer = -1;
+    dragPointer = selectionPointer = -1;
   }
   function keyboard(e: KeyboardEvent) {
     if (e.key.startsWith('Arrow') || ['+', '=', '-'].includes(e.key))
@@ -1316,6 +1345,7 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
   const resize = () => {
     const r = container.getBoundingClientRect();
     if (!r.width || !r.height) return;
+    const previousAspect = camera.aspect;
     camera.aspect = r.width / r.height;
     camera.updateProjectionMatrix();
     renderer.setSize(r.width, r.height);
@@ -1324,6 +1354,13 @@ export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
       camera.position.copy(pose.position);
       controls.target.copy(pose.target);
       framed = true;
+    } else if (Math.abs(previousAspect - camera.aspect) > 0.0001) {
+      const before = viewPose(previousAspect, exTarget > 0);
+      const after = viewPose(camera.aspect, exTarget > 0);
+      transition.reframe(
+        after.position.distanceTo(after.target) /
+          before.position.distanceTo(before.target),
+      );
     }
   };
   const observer = new ResizeObserver(resize);

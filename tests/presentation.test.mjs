@@ -36,6 +36,33 @@ assert.ok(
   'A manual gesture must permanently cancel the pending camera transition',
 );
 assert.equal(controls.enableDamping, true);
+controls.target.set(2, 1, -1);
+camera.position.set(6, 3, 11);
+const originalDirection = camera.position
+  .clone()
+  .sub(controls.target)
+  .normalize();
+const originalTarget = controls.target.clone();
+const originalDistance = camera.position.distanceTo(controls.target);
+transition.reframe(1.7);
+assert.ok(
+  controls.target.equals(originalTarget),
+  'Menu resizing must retain the pan target',
+);
+assert.ok(
+  camera.position
+    .clone()
+    .sub(controls.target)
+    .normalize()
+    .distanceTo(originalDirection) < 1e-8,
+  'Menu resizing must retain the viewing direction',
+);
+transition.reframe(1 / 1.7);
+assert.ok(
+  Math.abs(camera.position.distanceTo(controls.target) - originalDistance) <
+    1e-8,
+  'Hiding and restoring menus must not accumulate zoom drift',
+);
 const shellMeshes = Object.values(CASE_PROFILES).map(
   (profile) =>
     new THREE.Mesh(caseShell(profile), new THREE.MeshBasicMaterial()),

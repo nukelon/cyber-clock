@@ -19,9 +19,11 @@ import {
   FlipHorizontal2,
   Clock3,
   Check,
+  PanelRightClose,
+  PanelRightOpen,
 } from 'lucide-react';
 import { createWatch } from './watch';
-import { PARTS, type PartKey, type Snapshot } from './mechanism';
+import { Movement, PARTS, type PartKey } from './mechanism';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import {
@@ -38,15 +40,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-const initial: Snapshot = {
-  reserve: 115200,
-  time: '10:08:36',
-  running: true,
-  amplitude: 270,
-  setting: false,
-  crownTurns: 16,
-  speed: 1,
-};
+const initial = new Movement().snapshot();
 export default function Home() {
   const mount = useRef<HTMLDivElement>(null),
     api = useRef<ReturnType<typeof createWatch> | null>(null),
@@ -63,7 +57,8 @@ export default function Home() {
     ),
     [snapshot, setSnapshot] = useState(initial),
     [winding, setWinding] = useState(false),
-    [notice, setNotice] = useState('初始已预上链 32 小时'),
+    [notice, setNotice] = useState('尚未上链 · 轻转表冠，唤醒机芯'),
+    [menusHidden, setMenusHidden] = useState(false),
     [showInfo, setShowInfo] = useState(false),
     [timeInput, setTimeInput] = useState('10:08'),
     [labels, setLabels] = useState(true),
@@ -154,8 +149,31 @@ export default function Home() {
     'hands',
   ];
   return (
-    <div className="site dark">
-      <header className="header">
+    <div
+      className={
+        'site dark' +
+        (menusHidden ? ' menus-hidden' : '') +
+        (snapshot.setting ? ' is-setting' : '')
+      }
+    >
+      <button
+        className="menu-toggle"
+        aria-label={menusHidden ? '显示菜单' : '隐藏菜单'}
+        aria-expanded={!menusHidden}
+        aria-controls="watch-intro watch-panel watch-toolbar"
+        onClick={() => {
+          setMenusHidden(!menusHidden);
+          setHover(null);
+        }}
+      >
+        {menusHidden ? (
+          <PanelRightOpen size={17} />
+        ) : (
+          <PanelRightClose size={17} />
+        )}
+        <span>{menusHidden ? '显示菜单' : '隐藏菜单'}</span>
+      </button>
+      <header className="header" inert={menusHidden} aria-hidden={menusHidden}>
         <div className="brand">
           <span className="brand-symbol">◈</span>NOCTURNE
         </div>
@@ -174,7 +192,12 @@ export default function Home() {
         </div>
       </header>
       <main className="main">
-        <section className="intro">
+        <section
+          className="intro"
+          id="watch-intro"
+          inert={menusHidden}
+          aria-hidden={menusHidden}
+        >
           <div className="eyebrow">ATELIER / COLLECTION 01</div>
           <h1>
             Time,
@@ -226,7 +249,7 @@ export default function Home() {
               </div>
             </div>
           )}
-          {hover && labels && !winding && (
+          {hover && labels && !winding && !menusHidden && (
             <div
               className="hover-label"
               style={{
@@ -248,7 +271,11 @@ export default function Home() {
                 ? 'AFTER DARK'
                 : 'SQUELETTE / N.01'}
           </div>
-          <div className="zoom-controls">
+          <div
+            className="zoom-controls"
+            inert={menusHidden}
+            aria-hidden={menusHidden}
+          >
             <button
               aria-label="放大腕表"
               onClick={() => api.current?.zoom(0.87)}
@@ -266,16 +293,30 @@ export default function Home() {
             <Rotate3D size={15} />
             {exploded
               ? '分层探索 · 拖动旋转 · 点击零件'
-              : '拖动旋转 · 滚轮缩放 · 点击探索'}
+              : '左键旋转 · 中键平移 · 滚轮缩放'}
+            <span className="touch-hint">单指旋转 · 双指平移 / 缩放</span>
           </div>
         </div>
-        <aside className="panel" aria-label="机芯信息与交互控制">
+        <aside
+          className="panel"
+          id="watch-panel"
+          aria-label="机芯信息与交互控制"
+          inert={menusHidden}
+          aria-hidden={menusHidden}
+        >
           <div className="panel-main">
             <div className="panel-kicker">
               {part ? part.en : 'THE HEART WITHIN'}
             </div>
             <div className="selected-heading">
               <h2>{part ? part.title : 'Calibre N.01'}</h2>
+              <button
+                className="part-info"
+                aria-label="查看当前零件详细说明"
+                onClick={() => setShowInfo(true)}
+              >
+                <Info size={16} />
+              </button>
               {part && (
                 <button
                   aria-label="返回机芯总览"
@@ -435,9 +476,16 @@ export default function Home() {
             </div>
           </div>
         </aside>
-        <div className="toolbar" aria-label="展示选项">
+        <div
+          className="toolbar"
+          id="watch-toolbar"
+          aria-label="展示选项"
+          inert={menusHidden}
+          aria-hidden={menusHidden}
+        >
           <button
             title="自由探索 / 自动旋转"
+            aria-label={auto ? '自动环绕' : '自由探索'}
             aria-pressed={auto}
             className={'tool-button ' + (auto ? 'active' : '')}
             onClick={() => {
@@ -452,6 +500,7 @@ export default function Home() {
           </button>
           <button
             title="爆炸视图"
+            aria-label="爆炸视图"
             aria-pressed={exploded}
             className={'tool-button ' + (exploded ? 'active' : '')}
             onClick={() => {
@@ -468,6 +517,7 @@ export default function Home() {
           <div className="tool-divider" />
           <button
             title="夜光模式"
+            aria-label="夜光"
             aria-pressed={night}
             className={'tool-button ' + (night ? 'active' : '')}
             onClick={() => {
@@ -509,7 +559,11 @@ export default function Home() {
           </button>
         </div>
         {exploded && (
-          <div className="explosion-control">
+          <div
+            className="explosion-control"
+            inert={menusHidden}
+            aria-hidden={menusHidden}
+          >
             <div className="slider-label">
               <span>分解程度</span>
               <span>{explosion}%</span>
@@ -529,7 +583,7 @@ export default function Home() {
           </div>
         )}
       </main>
-      <footer className="footer">
+      <footer className="footer" inert={menusHidden} aria-hidden={menusHidden}>
         <span>NOCTURNE — INDEPENDENT WATCHMAKING</span>
         <button onClick={() => setShowInfo(true)}>
           机芯运动学研究 <span className="footer-arrow">↗</span>
@@ -543,6 +597,18 @@ export default function Home() {
           <DialogDescription>
             手动上链、储能与机械时间的交互研究。
           </DialogDescription>
+          {part && (
+            <section className="selected-part-detail">
+              <h3>{part.title}</h3>
+              <p>{part.description}</p>
+              {part.specs.map(([k, v]) => (
+                <div className="detail-row" key={k}>
+                  <span>{k}</span>
+                  <b>{v}</b>
+                </div>
+              ))}
+            </section>
+          )}
           <div className="dialog-controls">
             <div className="control-row">
               <label htmlFor="labels-toggle">零件悬停标签</label>
@@ -624,8 +690,8 @@ export default function Home() {
           </table>
           <p>
             15 齿擒纵轮每半振动平均转过 12°。条盒每 8 小时一圈，设定 6
-            圈有效发条转数，形成 48 小时的模型储能。初始预上链 32
-            小时；向上拖动上链、反向空回、满链限位，储能耗尽后机芯停走。
+            圈有效发条转数，形成 48 小时的模型储能。初始未上链；
+            向上拖动表冠即可启动，反向空回、满链限位，储能耗尽后机芯停走。
           </p>
           <p className="engineering-note">
             <strong>关于真实可运行性</strong>
@@ -633,9 +699,9 @@ export default function Home() {
             这是按机械传动关系构建的运动学模型。齿轮传动、上链与时间联动可运行；弹簧采用形变示意，擒纵采用规定运动。齿形接触、锁值与落差、公差、材料应力和装配干涉尚未经过工程求解或实物验证，因此不能作为已验证的可制造机芯。
           </p>
           <p>
-            鼠标拖动旋转，滚轮或 + / −
+            鼠标左键拖动旋转，中键拖动平移，滚轮或 + / −
             缩放；点击零件查看信息。键盘聚焦模型后，方向键旋转，W
-            上链。手机可单指旋转、双指缩放。
+            上链。手机可单指旋转、双指拖动平移、双指捏合缩放。右上角按钮可隐藏或显示菜单。
           </p>
           <div className="source-links">
             <a
