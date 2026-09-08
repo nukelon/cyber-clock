@@ -151,7 +151,6 @@ function lineGeometry(points: THREE.Vector3[], r = 0.012) {
 export function createWatch(container: HTMLElement, hooks: Hooks = {}) {
   RectAreaLightUniformsLib.init();
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x090d0f, 0.023);
   const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 150);
   camera.position.set(0.4, -2.1, 12.7);
   const renderer = new THREE.WebGLRenderer({
