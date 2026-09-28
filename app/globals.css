@@ -52,7 +52,9 @@ button {
   background: none;
 }
 button:focus-visible,
-a:focus-visible {
+a:focus-visible,
+.stage canvas:focus-visible,
+.winding-pad:focus-visible {
   outline: 2px solid #c7d9bb;
   outline-offset: 5px;
 }
@@ -252,6 +254,10 @@ body,
   width: 100%;
   height: 100%;
   outline: none;
+}
+.stage canvas:focus-visible {
+  /* Keep the ring inside the viewport when menus are hidden. */
+  outline-offset: -5px;
 }
 .measure-tag {
   position: absolute;
