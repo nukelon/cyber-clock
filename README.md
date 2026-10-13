@@ -66,6 +66,7 @@ GitHub Pages 通过 `.github/workflows/pages.yml` 自动检查、编译并部署
 
 ```sh
 pnpm install
+pnpm exec playwright install --only-shell chromium
 pnpm dev
 pnpm test
 pnpm build
